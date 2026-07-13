@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Загрузка сохранённого индекса SPLADE и вычисление метрик на уровне документов.
-Предполагается, что индекс сохранён с отсортированными chunk_ids.
-Восстанавливает исходные ID для корректной оценки.
+Индекс (splade_index.npz + splade_chunk_ids.npy) уже в правильном порядке —
+пересчитывать его не нужно, баг был только в кодировании запросов.
 """
 import os
 import gc
@@ -41,23 +41,37 @@ model.eval()
 print(f"Model loaded on {next(model.parameters()).device} (FP16)")
 
 # ============================================================
-# Функция кодирования (для запросов) – копия из основного скрипта
+# Функция кодирования – ВАЖНО: теперь возвращает order корректно
+# и есть возможность отключить сортировку по длине.
 # ============================================================
 def encode_splade_all(texts, tokenizer, model,
                       batch_size=8, max_length=374, threshold=0.01,
-                      show_progress=True):
-    # Сортируем по длине
-    lengths = [len(t.split()) for t in texts]
-    order = np.argsort(lengths)
+                      show_progress=True, sort_by_length=True):
+    """
+    Кодирует тексты в CSR-матрицу.
+
+    Возвращает (sparse_matrix, order), где order — перестановка такая,
+    что sparse_matrix[i] соответствует ИСХОДНОМУ тексту texts[order[i]].
+
+    Если sort_by_length=False, order == arange(len(texts)) (тривиальный,
+    без сортировки) — используйте это для запросов, чтобы не было риска
+    перепутать порядок при извлечении результатов.
+    """
+    n = len(texts)
+    if sort_by_length:
+        lengths = [len(t.split()) for t in texts]
+        order = np.argsort(lengths)          # order[i] = исходный индекс текста, который встал на позицию i
+    else:
+        order = np.arange(n)
+
     sorted_texts = [texts[i] for i in order]
-    del lengths, texts
     gc.collect()
 
     all_indices, all_values, all_counts = [], [], []
     total_batches = (len(sorted_texts) + batch_size - 1) // batch_size
     iterator = range(0, len(sorted_texts), batch_size)
     if show_progress:
-        iterator = tqdm(iterator, total=total_batches, desc="Encoding queries")
+        iterator = tqdm(iterator, total=total_batches, desc="Encoding")
 
     with torch.inference_mode():
         for start_idx in iterator:
@@ -89,7 +103,7 @@ def encode_splade_all(texts, tokenizer, model,
             torch.cuda.empty_cache()
             gc.collect()
 
-    print("Building CSR matrix for queries...")
+    print("Building CSR matrix...")
     all_counts = np.concatenate(all_counts)
     indptr = np.concatenate([[0], np.cumsum(all_counts)])
     if all_indices:
@@ -101,7 +115,6 @@ def encode_splade_all(texts, tokenizer, model,
 
     sparse_matrix = csr_matrix((values, indices, indptr),
                                shape=(len(sorted_texts), tokenizer.vocab_size))
-    # возвращаем матрицу и порядок сортировки (для восстановления)
     return sparse_matrix, order
 
 # ============================================================
@@ -109,29 +122,14 @@ def encode_splade_all(texts, tokenizer, model,
 # ============================================================
 print("\nLoading saved index...")
 chunk_embeddings = load_npz("splade_index.npz")
-chunk_ids_sorted = np.load("splade_chunk_ids.npy")  # отсортированные ID
+chunk_ids_sorted = np.load("splade_chunk_ids.npy")  # уже в правильном порядке, ничего не пересчитываем
 print(f"Index shape: {chunk_embeddings.shape}")
 print(f"Number of chunks: {len(chunk_ids_sorted)}")
 
-# Загружаем исходные данные для восстановления порядка и ground truth
-print("\nLoading chunk data for ground truth...")
-df_chunks = pd.read_parquet("chunks_fixed_v1.parquet")
+print("\nLoading question data...")
 df_questions = pd.read_parquet("questions_for_sample.parquet")
+df_chunks = pd.read_parquet("chunks_fixed_v1.parquet")
 
-# Строим маппинг: отсортированный chunk_id -> исходный chunk_id
-chunk_ids_original = df_chunks['chunk_id'].values
-chunk_texts = df_chunks['chunk_text'].tolist()
-lengths = [len(t.split()) for t in chunk_texts]
-sort_order = np.argsort(lengths)
-sorted_chunk_ids_original = chunk_ids_original[sort_order]
-sorted_to_original = {sorted_id: orig_id for sorted_id, orig_id in zip(sorted_chunk_ids_original, chunk_ids_original[sort_order])}
-
-# Проверяем, что загруженные ID совпадают с восстановленными (для уверенности)
-assert np.array_equal(chunk_ids_sorted, sorted_chunk_ids_original), "Mismatch in sorted chunk IDs!"
-
-# ============================================================
-# 2. Подготовка ground truth на уровне документов
-# ============================================================
 chunk_to_doc = dict(zip(df_chunks['chunk_id'], df_chunks['doc_id']))
 expected_doc_ids_by_qid = {
     row['question_id']: set(row['expected_doc_ids'])
@@ -147,27 +145,33 @@ for _, row in df_questions.iterrows():
 print(f"Number of queries: {len(queries)}")
 
 # ============================================================
-# 3. Кодирование запросов
+# 2. Кодирование запросов
+# sort_by_length=False -> order тривиален, строка i == queries[i].
+# Запросов немного, так что потеря скорости от отсутствия сортировки
+# по длине незначительна, а риск рассинхрона убран полностью.
 # ============================================================
 print("\nEncoding queries...")
 query_texts = [q['text'] for q in queries]
-query_embeddings, _ = encode_splade_all(
+query_embeddings, q_order = encode_splade_all(
     texts=query_texts,
     tokenizer=tokenizer,
     model=model,
     batch_size=BATCH_SIZE,
     max_length=MAX_LENGTH,
     threshold=0.01,
-    show_progress=True
+    show_progress=True,
+    sort_by_length=False,
 )
+assert np.array_equal(q_order, np.arange(len(queries))), "order должен быть тривиальным при sort_by_length=False"
 
 # ============================================================
-# 4. Поиск (результаты в отсортированных ID)
+# 3. Поиск – chunk_ids_sorted уже соответствует строкам chunk_embeddings,
+# так что результат сразу в исходных chunk_id, отдельного маппинга не нужно.
 # ============================================================
 print("\nSearching...")
 similarities = query_embeddings @ chunk_embeddings.T
 top_k = 1000
-splade_results_sorted = {}
+splade_results = {}
 for i, query in enumerate(tqdm(queries, desc="Extracting top-K")):
     row = similarities[i].toarray().flatten()
     if top_k < len(row):
@@ -175,25 +179,16 @@ for i, query in enumerate(tqdm(queries, desc="Extracting top-K")):
         top_k_idx = top_k_idx[np.argsort(row[top_k_idx])[::-1]]
     else:
         top_k_idx = np.argsort(row)[::-1][:top_k]
-    # Результаты в отсортированных ID
-    splade_results_sorted[query['qid']] = [chunk_ids_sorted[idx] for idx in top_k_idx]
-
-# ============================================================
-# 5. Преобразование в исходные ID для оценки
-# ============================================================
-splade_results_original = {}
-for qid, sorted_ids in splade_results_sorted.items():
-    splade_results_original[qid] = [sorted_to_original[sid] for sid in sorted_ids]
+    splade_results[query['qid']] = [chunk_ids_sorted[idx] for idx in top_k_idx]
 
 print("Search completed.")
 
-# Сохраняем результаты в исходных ID
 with open("splade_results_from_index.pkl", "wb") as f:
-    pickle.dump(splade_results_original, f)
+    pickle.dump(splade_results, f)
 print("Results saved to splade_results_from_index.pkl")
 
 # ============================================================
-# 6. Оценка на уровне документов
+# 4. Оценка на уровне документов
 # ============================================================
 def compute_metrics_doc_level(retrieved_lists, chunk_to_doc, expected_doc_ids,
                               k_values=[1, 5, 10, 100, 1000]):
@@ -243,10 +238,10 @@ def print_metrics_table(results_df, title=""):
 
 print("\n" + "="*60)
 doc_metrics = compute_metrics_doc_level(
-    retrieved_lists=splade_results_original,
+    retrieved_lists=splade_results,
     chunk_to_doc=chunk_to_doc,
     expected_doc_ids=expected_doc_ids_by_qid,
     k_values=[1, 5, 10, 100, 1000]
 )
-print_metrics_table(doc_metrics, "SPLADE (Doc‑level) Results")
-print("✅ Done.")
+print_metrics_table(doc_metrics, "SPLADE (Doc-level) Results")
+print("Done.")
