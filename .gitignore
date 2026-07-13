@@ -1,3 +1,7 @@
 data/*
 *.env
 *.parquet
+onnx_*
+dense*
+bm25*
+.ipynb*
