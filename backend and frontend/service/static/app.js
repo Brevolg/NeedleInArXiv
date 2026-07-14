@@ -2,6 +2,7 @@ const form = document.querySelector("#search-form");
 const queryInput = document.querySelector("#query");
 const modeSelect = document.querySelector("#mode");
 const topKSelect = document.querySelector("#top-k");
+const rerankInput = document.querySelector("#rerank");
 const statusBox = document.querySelector("#status");
 const resultsBox = document.querySelector("#results");
 const submitButton = document.querySelector("#submit");
@@ -35,6 +36,10 @@ async function loadConfig() {
       `<option value="${escapeHtml(mode.value)}">${escapeHtml(mode.label)}</option>`
     ).join("");
     modeSelect.value = document.body.dataset.defaultMode || config.default_mode;
+    rerankInput.disabled = !config.reranker_enabled;
+    rerankInput.title = config.reranker_enabled
+      ? "Rerank the candidate pool with a cross-encoder"
+      : "Enable RERANKER_ENABLED=true on the backend to use this";
     sourceMenu.innerHTML = config.sources.map((source) => `
       <label class="source-option">
         <input type="checkbox" value="${escapeHtml(source)}" checked />
@@ -72,6 +77,7 @@ function renderResults(payload) {
         <div class="meta">
           <span class="source">${escapeHtml(item.source)}</span>
           <span>${escapeHtml(item.doc_id)}</span>
+          ${item.chunk_id ? `<span>chunk ${escapeHtml(item.chunk_id)}</span>` : ""}
           ${item.n_chunks ? `<span>${item.n_chunks} chunks</span>` : ""}
           ${item.char_len ? `<span>${item.char_len.toLocaleString()} chars</span>` : ""}
         </div>
@@ -99,6 +105,7 @@ form.addEventListener("submit", async (event) => {
         mode: modeSelect.value,
         top_k: Number(topKSelect.value),
         sources: sources.length === allSources ? null : sources,
+        rerank: rerankInput.checked,
       }),
     });
     const payload = await response.json();
@@ -113,4 +120,3 @@ form.addEventListener("submit", async (event) => {
 });
 
 loadConfig();
-

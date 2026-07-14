@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Semantic Search",
     version="1.0.0",
-    description="Dense, BM25, and RRF hybrid retrieval",
+    description="Dense, BM25, SPLADE, RRF triple-hybrid retrieval, and optional reranking",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -75,11 +75,15 @@ async def config(request: Request):
             {"value": "dense_v1", "label": "Iteration 1 — dense exact"},
             {"value": "dense_v2", "label": "Iteration 2 — dense HNSW"},
             {"value": "bm25", "label": "BM25"},
+            {"value": "splade", "label": "SPLADE sparse"},
             {"value": "hybrid_v1", "label": "Hybrid v1 — BM25 + dense exact"},
             {"value": "hybrid_v2", "label": "Hybrid v2 — BM25 + dense HNSW"},
+            {"value": "triple_hybrid_v1", "label": "Triple v1 — BM25 + dense exact + SPLADE"},
+            {"value": "triple_hybrid_v2", "label": "Triple v2 — BM25 + dense HNSW + SPLADE"},
         ],
         "default_mode": engine.settings.default_mode,
         "max_top_k": engine.settings.max_top_k,
+        "reranker_enabled": engine.settings.reranker_enabled,
     }
 
 
@@ -94,6 +98,7 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponseMode
             mode=payload.mode,
             top_k=payload.top_k,
             sources=set(payload.sources) if payload.sources else None,
+            rerank=payload.rerank,
         )
     except (ValueError, FileNotFoundError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -106,4 +111,3 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponseMode
         total=len(response.results),
         results=[ResultItem.model_validate(result, from_attributes=True) for result in response.results],
     )
-

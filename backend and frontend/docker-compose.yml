@@ -1,6 +1,6 @@
 services:
   qdrant:
-    image: qdrant/qdrant:v1.18.0
+    image: qdrant/qdrant:v1.15.4
     restart: unless-stopped
     ports:
       - "6333:6333"
@@ -23,6 +23,7 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./embeddings:/app/embeddings:ro
+      - ./external_indexes:/app/external_indexes:ro
       - ./index:/app/index
       - model_cache:/root/.cache/huggingface
     depends_on:

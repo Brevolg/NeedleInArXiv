@@ -10,6 +10,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from search.encoders import HashingEncoder
+from search.splade import SPLADEIndex, create_sparse_encoder
 
 
 DOCUMENTS = [
@@ -29,6 +30,7 @@ DOCUMENTS = [
 def main() -> None:
     data_dir = Path("data/demo")
     embedding_dir = Path("embeddings/demo")
+    splade_dir = Path("index/demo_splade")
     data_dir.mkdir(parents=True, exist_ok=True)
     embedding_dir.mkdir(parents=True, exist_ok=True)
     mapping = pd.DataFrame(DOCUMENTS, columns=["doc_id", "source", "title"])
@@ -53,6 +55,22 @@ def main() -> None:
     encoder = HashingEncoder(64)
     vectors = encoder.encode(mapping["title"].tolist())
     np.save(embedding_dir / "embeddings_v1.npy", vectors, allow_pickle=False)
+    sparse_encoder = create_sparse_encoder("hashing_sparse:256")
+    sparse_matrix, order = sparse_encoder.encode(mapping["title"].tolist(), sort_by_length=True)
+    SPLADEIndex(
+        sparse_matrix,
+        row_indices=np.arange(len(mapping), dtype=np.int64)[order],
+        sources=mapping["source"].astype(str).to_numpy()[order],
+        metadata={
+            "version": 1,
+            "rows": int(sparse_matrix.shape[0]),
+            "features": int(sparse_matrix.shape[1]),
+            "model": "hashing_sparse:256",
+            "fingerprint": "",
+            "content_kind": "title",
+            "ordering": "demo hashing index; matrix row i maps to row_indices[i]",
+        },
+    ).save(splade_dir)
     config = {
         "DATA_PATH": str(data_dir / "id_mapping.parquet"),
         "QUESTIONS_PATH": str(data_dir / "questions.parquet"),
@@ -61,6 +79,9 @@ def main() -> None:
         "QDRANT_COLLECTION_V1": "demo_papers_v1",
         "QDRANT_URL": "file://index/demo_qdrant",
         "BM25_DIR": "index/demo_bm25",
+        "SPLADE_DIR": str(splade_dir),
+        "SPLADE_MODEL": "hashing_sparse:256",
+        "DEFAULT_MODE": "triple_hybrid_v1",
     }
     Path(".env.demo").write_text(
         "\n".join(f"{key}={value}" for key, value in config.items()) + "\n", "utf-8"

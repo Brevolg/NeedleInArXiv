@@ -29,6 +29,17 @@ Latency измерена одним локальным прогоном посл
 Проверено 10 unit/integration тестов, включая in-memory Qdrant upload/search, а также отдельный
 end-to-end demo hybrid search.
 
+## Добавлено после переноса из NeedleInArXiv
+
+- backend-модуль SPLADE с тем же ordering-контрактом, что в `notebooks/eval_splade.py`;
+- скрипт `scripts/build_splade.py` для построения `index/splade`;
+- режимы `splade`, `triple_hybrid_v1`, `triple_hybrid_v2`;
+- optional reranker hook под `mixedbread-ai/mxbai-rerank-large-v1`;
+- demo SPLADE на `hashing_sparse`, чтобы проверить triple-hybrid инфраструктуру без загрузки
+  тяжёлой модели.
+
+Метрики triple hybrid нужно пересчитать после построения SPLADE и dense-индексов на той же машине.
+
 ## Нельзя честно подтвердить без `embeddings_v1.npy`
 
 - форму и dtype матрицы;

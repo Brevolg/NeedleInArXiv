@@ -6,4 +6,5 @@ qdrant_storage
 embeddings/*.npy
 embeddings/*.npz
 data/*.parquet
-
+external_indexes/*
+!external_indexes/README.md

@@ -23,9 +23,12 @@
 
 - dense v1: `all-MiniLM-L6-v2`, точный полный просмотр Qdrant (`exact=True`);
 - dense v2: SPECTER2, HNSW с настраиваемыми `m`, `ef_construct`, `ef_search`;
+- SPLADE sparse retrieval с сохранением row-order mapping как в `notebooks/eval_splade.py`;
 - scalar int8 quantization в Qdrant для v2 и отдельный анализ offline-квантизации;
 - собственный сохраняемый BM25 на sparse CSR-матрице;
-- гибрид v1/v2 через Reciprocal Rank Fusion;
+- hybrid v1/v2 через Reciprocal Rank Fusion;
+- triple hybrid v1/v2: BM25 + dense + SPLADE через Reciprocal Rank Fusion;
+- optional cross-encoder reranker hook для `mixedbread-ai/mxbai-rerank-large-v1`;
 - фильтр по источникам и устранение повторных `doc_id` после retrieval;
 - nDCG@10, Recall@10, MAP@10, MRR@10, latency и отдельный учёт no-answer запросов;
 - PCA, benchmark exact vs HNSW, аудит входных файлов;
@@ -58,11 +61,12 @@
    pytest
    ```
 
-3. Поднимите Qdrant, постройте BM25, загрузите dense v1:
+3. Поднимите Qdrant, постройте BM25 и SPLADE, загрузите dense v1:
 
    ```bash
    docker compose up -d qdrant
    python scripts/build_bm25.py
+   python scripts/build_splade.py
    python scripts/index_embeddings.py --iteration 1 --recreate
    ```
 
@@ -73,6 +77,7 @@
    ```
 
    Интерфейс: `http://localhost:8000`, OpenAPI: `http://localhost:8000/docs`.
+   По умолчанию production `.env.example` использует `triple_hybrid_v1`.
 
 Можно запустить API в Docker после создания индексов: `docker compose up --build api`.
 
@@ -109,8 +114,8 @@ SPECTER2 оправдан для arXiv, потому что это модель 
 ## Оценка
 
 ```bash
-python scripts/evaluate.py --modes dense_v1 bm25 hybrid_v1
-python scripts/evaluate.py --modes dense_v2 hybrid_v2
+python scripts/evaluate.py --modes dense_v1 bm25 splade hybrid_v1 triple_hybrid_v1
+python scripts/evaluate.py --modes dense_v2 hybrid_v2 triple_hybrid_v2
 python scripts/pca_analysis.py \
   --embeddings embeddings/embeddings_v1.npy \
   --output-dir reports/generated/pca_v1
@@ -135,6 +140,71 @@ uvicorn service.main:app --port 8000
 
 Demo использует детерминированный hashing-энкодер только для проверки инфраструктуры. Его
 качество нельзя выдавать за результат модели.
+
+## SPLADE и ordering
+
+SPLADE-индекс сохраняется в `index/splade` как `matrix.npz`, `row_indices.npy`,
+`sources.npy`, `metadata.json`. При сборке документов тексты сортируются по длине для более
+ровных батчей, поэтому `row_indices[i]` хранит настоящий `row_index` для строки `i` sparse-матрицы.
+Запросы кодируются с `sort_by_length=False`; строка `0` query-матрицы всегда относится к текущему
+запросу. Это переносит фикс из `notebooks/eval_splade.py` и не даёт метрикам смотреть на чужие
+документы.
+
+## Уже посчитанные индексы
+
+Если BM25S, dense FAISS и SPLADE уже посчитаны в ноутбуках, пересчитывать их не нужно.
+Положите файлы так:
+
+```text
+external_indexes/
+  bm25s_cache/
+    chunk_ids.pkl              # или bm25s_chunk_ids.pkl / bm25_chunk_ids.pkl
+    index/
+      data.csc.index.npy
+      indices.csc.index.npy
+      indptr.csc.index.npy
+      vocab.index.json
+      params.index.json
+  dense/
+    faiss_index.bin
+    dense_chunk_ids.pkl
+    chunk_embeddings.npy
+  splade/
+    splade_index.npz
+    splade_chunk_ids.npy
+data/
+  chunks_fixed_v1.parquet
+```
+
+`chunks_fixed_v1.parquet` нужен обязательно для chunk-level индексов: backend по нему делает
+`chunk_id -> doc_id -> title/source`. В файле должны быть `chunk_id`, `doc_id` и желательно
+`chunk_text`.
+
+Затем включите режим:
+
+```bash
+cp .env.precomputed.example .env
+python scripts/validate_precomputed_indexes.py
+uvicorn service.main:app --host 127.0.0.1 --port 8000
+```
+
+Для dense важно указать ту же модель, которой строились `chunk_embeddings.npy` и
+`faiss_index.bin`. Если индекс был построен через E5 и запросы кодировались с префиксом
+`query: `, оставьте `DENSE_QUERY_PREFIX="query: "`.
+
+## Large reranker hook
+
+Реранкер выключен по умолчанию, потому что `mixedbread-ai/mxbai-rerank-large-v1` тяжелее обычного
+retrieval и должен запускаться только после готового candidate pool. Для включения:
+
+```bash
+RERANKER_ENABLED=true
+RERANKER_MODEL=mixedbread-ai/mxbai-rerank-large-v1
+RERANKER_CANDIDATES=100
+```
+
+После этого в API можно передать `rerank=true`. Backend сначала строит candidate pool выбранным
+режимом, например `triple_hybrid_v1`, затем cross-encoder пересортировывает кандидатов.
 
 ## Структура
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Dense and hybrid enterprise document search" />
+    <meta name="description" content="Dense, sparse, and triple-hybrid enterprise document search" />
     <title>Semantic Search</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
   </head>
@@ -44,6 +44,13 @@
                 <option>50</option>
               </select>
             </label>
+            <label class="rerank-control">
+              Reranker
+              <span class="check-row">
+                <input id="rerank" name="rerank" type="checkbox" />
+                <span>Cross-encoder</span>
+              </span>
+            </label>
             <fieldset>
               <legend>Sources</legend>
               <button type="button" class="filter-trigger" id="filter-trigger">
@@ -63,4 +70,3 @@
     <script src="{{ url_for('static', path='/app.js') }}" defer></script>
   </body>
 </html>
-

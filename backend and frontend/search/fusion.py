@@ -10,6 +10,7 @@ class RankedItem:
     doc_id: str
     row_index: int
     score: float
+    chunk_id: str | None = None
 
 
 def reciprocal_rank_fusion(
@@ -35,7 +36,7 @@ def reciprocal_rank_fusion(
             doc_id=doc_id,
             row_index=representatives[doc_id].row_index,
             score=scores[doc_id],
+            chunk_id=representatives[doc_id].chunk_id,
         )
         for doc_id in ordered
     ]
-

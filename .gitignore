@@ -5,3 +5,10 @@ onnx_*
 dense*
 bm25*
 .ipynb*
+external_indexes/*
+!external_indexes/README.md
+*.npy
+*.npz
+*.bin
+*.pkl
+data/chunks_fixed_v1.parquet

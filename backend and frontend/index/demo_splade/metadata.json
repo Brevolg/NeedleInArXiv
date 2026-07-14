@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "rows": 10,
+  "features": 256,
+  "model": "hashing_sparse:256",
+  "fingerprint": "",
+  "content_kind": "title",
+  "ordering": "demo hashing index; matrix row i maps to row_indices[i]"
+}

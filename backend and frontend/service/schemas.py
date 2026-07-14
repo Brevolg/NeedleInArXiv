@@ -10,6 +10,7 @@ class SearchRequest(BaseModel):
     mode: SearchMode = SearchMode.HYBRID_V1
     top_k: int = Field(default=10, ge=1, le=100)
     sources: list[str] | None = None
+    rerank: bool = False
 
     @field_validator("query")
     @classmethod
@@ -23,6 +24,7 @@ class ResultItem(BaseModel):
     rank: int
     row_index: int
     doc_id: str
+    chunk_id: str | None = None
     title: str
     source: str
     score: float
@@ -38,4 +40,3 @@ class SearchResponseModel(BaseModel):
     latency_ms: float
     total: int
     results: list[ResultItem]
-
