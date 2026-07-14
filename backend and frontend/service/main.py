@@ -73,13 +73,10 @@ async def config(request: Request):
         "sources": engine.repository.sources,
         "modes": [
             {"value": "dense_v1", "label": "Iteration 1 — dense exact"},
-            {"value": "dense_v2", "label": "Iteration 2 — dense HNSW"},
             {"value": "bm25", "label": "BM25"},
             {"value": "splade", "label": "SPLADE sparse"},
             {"value": "hybrid_v1", "label": "Hybrid v1 — BM25 + dense exact"},
-            {"value": "hybrid_v2", "label": "Hybrid v2 — BM25 + dense HNSW"},
             {"value": "triple_hybrid_v1", "label": "Triple v1 — BM25 + dense exact + SPLADE"},
-            {"value": "triple_hybrid_v2", "label": "Triple v2 — BM25 + dense HNSW + SPLADE"},
         ],
         "default_mode": engine.settings.default_mode,
         "max_top_k": engine.settings.max_top_k,
