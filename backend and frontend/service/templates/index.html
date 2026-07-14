@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Dense and hybrid enterprise document search" />
+    <title>Semantic Search</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
+  </head>
+  <body data-default-mode="{{ default_mode }}">
+    <main class="shell">
+      <header class="hero">
+        <div class="eyebrow">ENTERPRISE RETRIEVAL LAB</div>
+        <h1>Find the document that says it differently.</h1>
+        <p>Compare exact dense retrieval, HNSW, BM25, and reciprocal-rank fusion.</p>
+      </header>
+
+      <section class="search-panel" aria-label="Search controls">
+        <form id="search-form">
+          <label class="query-label" for="query">Question or topic</label>
+          <div class="query-row">
+            <input
+              id="query"
+              name="query"
+              type="search"
+              maxlength="2000"
+              placeholder="e.g. How should entitlement propagation delays be handled?"
+              autocomplete="off"
+              required
+            />
+            <button type="submit" id="submit">Search</button>
+          </div>
+          <div class="controls">
+            <label>
+              Retrieval mode
+              <select id="mode" name="mode"></select>
+            </label>
+            <label>
+              Results
+              <select id="top-k" name="top_k">
+                <option>5</option>
+                <option selected>10</option>
+                <option>20</option>
+                <option>50</option>
+              </select>
+            </label>
+            <fieldset>
+              <legend>Sources</legend>
+              <button type="button" class="filter-trigger" id="filter-trigger">
+                All sources
+              </button>
+              <div class="source-menu" id="source-menu" hidden></div>
+            </fieldset>
+          </div>
+        </form>
+      </section>
+
+      <section class="status" aria-live="polite" id="status">
+        Ready. Try a natural-language question.
+      </section>
+      <section id="results" class="results" aria-label="Search results"></section>
+    </main>
+    <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+  </body>
+</html>
+

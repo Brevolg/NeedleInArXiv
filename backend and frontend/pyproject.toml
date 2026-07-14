@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "enterprise-semantic-search"
+version = "1.0.0"
+description = "Reproducible dense and hybrid search over EnterpriseRAG-Bench/arXiv-style corpora"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "jinja2>=3.1,<4",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<4",
+  "pyarrow>=18,<25",
+  "pydantic-settings>=2.8,<3",
+  "qdrant-client>=1.14,<2",
+  "scikit-learn>=1.5,<2",
+  "scipy>=1.13,<2",
+  "sentence-transformers>=5.0,<6",
+  "torch>=2.4,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+specter2 = ["adapters>=1.1,<2", "transformers>=4.48,<5"]
+plots = ["matplotlib>=3.9,<4"]
+dev = ["httpx>=0.28,<1", "pytest>=8.3,<10", "ruff>=0.12,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["search", "service"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+

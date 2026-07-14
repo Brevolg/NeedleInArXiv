@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "rows": 10,
+  "features": 56,
+  "k1": 1.5,
+  "b": 0.75,
+  "avg_doc_len": 6.5,
+  "fingerprint": "f1e57a1b738f9c3a46271743795a0733f586b14235ba6fa1ebb2b41a0812d2c2",
+  "content_kind": "title"
+}
