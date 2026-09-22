@@ -1,14 +1,24 @@
-data/*
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+
+# Secrets
+.env
 *.env
+
+# Large data and model artifacts (kept outside git)
+data/*
 *.parquet
-onnx_*
-dense*
-bm25*
-.ipynb*
-external_indexes/*
-!external_indexes/README.md
 *.npy
 *.npz
 *.bin
 *.pkl
-data/chunks_fixed_v1.parquet
+
+# Local caches produced by the notebooks
+notebooks/onnx_*/
+notebooks/dense/
+notebooks/bm25_cache/
+notebooks/bm25s_cache/
+notebooks/retrieval_results/

@@ -17,3 +17,6 @@ reports/generated/*
 !reports/generated/.gitkeep
 qdrant_storage/
 
+external_indexes/*
+!external_indexes/README.md
+index/demo_qdrant/.lock
