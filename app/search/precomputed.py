@@ -15,7 +15,7 @@ class ChunkHit:
 
 
 class PrecomputedBM25SIndex:
-    """Adapter for bm25s cache folders produced by notebooks/classical_retrieval.ipynb."""
+    """Adapter for bm25s cache folders produced by notebooks/03_classical_retrieval.ipynb."""
 
     def __init__(
         self,
